@@ -175,22 +175,29 @@ def get_mode_from_translation(translated_mode: str, language: str = "en") -> str
     return translated_mode
 
 
-def save_monitor_config(ip: str, language: str = "en", start_minimized: bool = False):
-    """Сохранить IP адрес монитора, язык и настройку запуска в конфигурационный файл"""
+def save_monitor_config(
+    ip: str,
+    language: str = "en",
+    start_minimized: bool = False,
+    mac: Optional[str] = None,
+):
+    """Сохранить IP адрес монитора, MAC адрес, язык и настройку запуска в конфигурационный файл"""
     try:
         config = {
             "last_monitor_ip": ip,
             "language": language,
             "start_minimized": start_minimized,
         }
+        if mac:
+            config["last_monitor_mac"] = mac
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
     except Exception as e:
         print(f"Ошибка сохранения конфигурации: {e}")
 
 
-def load_monitor_config() -> tuple[Optional[str], str, bool]:
-    """Загрузить IP адрес последнего подключенного монитора, язык и настройку запуска"""
+def load_monitor_config() -> tuple[Optional[str], str, bool, Optional[str]]:
+    """Загрузить IP адрес, MAC адрес последнего подключенного монитора, язык и настройку запуска"""
     try:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -198,10 +205,11 @@ def load_monitor_config() -> tuple[Optional[str], str, bool]:
                 ip = config.get("last_monitor_ip")
                 language = config.get("language", "en")
                 start_minimized = config.get("start_minimized", False)
-                return ip, language, start_minimized
+                mac = config.get("last_monitor_mac")
+                return ip, language, start_minimized, mac
     except Exception as e:
         print(f"Ошибка загрузки конфигурации: {e}")
-    return None, "en", False
+    return None, "en", False, None
 
 
 # ============================================================================
@@ -209,35 +217,35 @@ def load_monitor_config() -> tuple[Optional[str], str, bool]:
 # ============================================================================
 
 
-def get_reachable_ips() -> List[str]:
-    """Получить список достижимых IP адресов из ARP таблицы"""
-    import subprocess
-    import re
-    import platform
-
-    reachable_ips = []
+def get_ip_mac_mapping() -> dict[str, str]:
+    """Получить словарь IP -> MAC адресов из ARP таблицы"""
+    ip_mac_map = {}
 
     try:
         if platform.system() == "Windows":
-            # Используем PowerShell команду для получения достижимых соседей
+            # Используем PowerShell команду для получения IP и MAC адресов
             try:
                 result = subprocess.run(
                     [
                         "powershell",
                         "-Command",
-                        "Get-NetNeighbor | Where-Object {$_.State -eq 'Reachable'} | Select-Object -ExpandProperty IPAddress",
+                        "Get-NetNeighbor | Where-Object {$_.State -eq 'Reachable'} | Select-Object IPAddress, LinkLayerAddress | Format-Table -HideTableHeaders",
                     ],
                     capture_output=True,
                     text=True,
                     timeout=5,
                 )
                 if result.returncode == 0:
-                    ips = [
-                        ip.strip()
-                        for ip in result.stdout.strip().split("\n")
-                        if ip.strip()
-                    ]
-                    reachable_ips.extend(ips)
+                    # Парсим вывод PowerShell
+                    for line in result.stdout.strip().split("\n"):
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            ip = parts[0].strip()
+                            mac = parts[1].strip().replace("-", ":")
+                            if (
+                                ip and mac and len(mac) == 17
+                            ):  # MAC адрес должен быть 17 символов (xx:xx:xx:xx:xx:xx)
+                                ip_mac_map[ip] = mac.lower()
             except:
                 pass
 
@@ -248,9 +256,13 @@ def get_reachable_ips() -> List[str]:
                 )
                 if result.returncode == 0:
                     # Парсим вывод arp -a: ищем строки вида "192.168.1.1    xx-xx-xx-xx-xx-xx   dynamic"
-                    pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+                    # Паттерн для IP и MAC адреса
+                    pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2}[-:][0-9a-fA-F]{2})"
                     matches = re.findall(pattern, result.stdout)
-                    reachable_ips.extend(matches)
+                    for ip, mac in matches:
+                        # Нормализуем MAC адрес (приводим к формату xx:xx:xx:xx:xx:xx)
+                        mac_normalized = mac.replace("-", ":").lower()
+                        ip_mac_map[ip] = mac_normalized
             except:
                 pass
         else:
@@ -261,9 +273,10 @@ def get_reachable_ips() -> List[str]:
                 )
                 if result.returncode == 0:
                     # Парсим вывод: ищем строки вида "192.168.1.1 dev eth0 lladdr xx:xx:xx:xx:xx:xx REACHABLE"
-                    pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+                    pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).*lladdr\s+([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})"
                     matches = re.findall(pattern, result.stdout)
-                    reachable_ips.extend(matches)
+                    for ip, mac in matches:
+                        ip_mac_map[ip] = mac.lower()
             except:
                 # Fallback на arp
                 try:
@@ -271,32 +284,45 @@ def get_reachable_ips() -> List[str]:
                         ["arp", "-a"], capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0:
-                        pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+                        pattern = r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}).*\(([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})\)"
                         matches = re.findall(pattern, result.stdout)
-                        reachable_ips.extend(matches)
+                        for ip, mac in matches:
+                            ip_mac_map[ip] = mac.lower()
                 except:
                     pass
 
     except Exception as e:
         print(f"Предупреждение: не удалось получить ARP таблицу: {e}")
 
-    # Убираем дубликаты и локальные адреса
-    unique_ips = list(set(reachable_ips))
     # Фильтруем локальные адреса (127.x.x.x, 169.254.x.x)
-    filtered_ips = [
-        ip
-        for ip in unique_ips
+    filtered_map = {
+        ip: mac
+        for ip, mac in ip_mac_map.items()
         if not ip.startswith("127.") and not ip.startswith("169.254.")
-    ]
+    }
 
-    return filtered_ips
+    return filtered_map
 
 
-def discover_lg_monitors(timeout=2) -> List[str]:
-    """Поиск LG мониторов через WebSocket порт 3001 (только среди достижимых IP)"""
+def get_reachable_ips() -> List[str]:
+    """Получить список достижимых IP адресов из ARP таблицы"""
+    ip_mac_map = get_ip_mac_mapping()
+    return list(ip_mac_map.keys())
+
+
+def discover_lg_monitors(
+    timeout=2, saved_mac: Optional[str] = None
+) -> tuple[List[str], dict[str, str]]:
+    """Поиск LG мониторов через WebSocket порт 3001 (только среди достижимых IP)
+
+    Возвращает:
+        - список IP адресов найденных мониторов
+        - словарь IP -> MAC адресов для найденных мониторов
+    """
 
     print("Получение списка достижимых устройств из ARP таблицы...")
-    reachable_ips = get_reachable_ips()
+    ip_mac_map = get_ip_mac_mapping()
+    reachable_ips = list(ip_mac_map.keys())
 
     if not reachable_ips:
         print(
@@ -309,10 +335,13 @@ def discover_lg_monitors(timeout=2) -> List[str]:
         s.close()
         network = ipaddress.IPv4Network(f"{local_ip}/24", strict=False)
         reachable_ips = [str(ip) for ip in network.hosts()]
+        # Для fallback метода MAC адреса недоступны
+        ip_mac_map = {}
 
     print(f"Проверка {len(reachable_ips)} достижимых устройств на порт 3001...")
 
     lg_devices = []
+    lg_devices_mac = {}  # IP -> MAC для найденных мониторов
 
     def check_ip(ip):
         try:
@@ -333,9 +362,23 @@ def discover_lg_monitors(timeout=2) -> List[str]:
             result = future.result()
             if result:
                 lg_devices.append(result)
+                # Сохраняем MAC адрес для найденного монитора, если он доступен
+                if result in ip_mac_map:
+                    lg_devices_mac[result] = ip_mac_map[result]
                 print(f"✓ Найден LG монитор: {result}")
 
-    return lg_devices
+    # Если есть сохраненный MAC адрес, проверяем, найден ли он в списке
+    if saved_mac:
+        saved_mac_lower = saved_mac.lower()
+        for ip, mac in lg_devices_mac.items():
+            if mac.lower() == saved_mac_lower:
+                print(f"✓ Найден монитор по сохраненному MAC адресу: {ip} (MAC: {mac})")
+                # Если этот IP не был в списке найденных (маловероятно, но на всякий случай)
+                if ip not in lg_devices:
+                    lg_devices.insert(0, ip)  # Добавляем в начало списка
+                break
+
+    return lg_devices, lg_devices_mac
 
 
 # ============================================================================
@@ -502,7 +545,7 @@ class LGMonitorGUI:
         self.connect_button = None  # Кнопка подключения/обновления
         self.hdr_monitor_task = None  # Задача мониторинга HDR
         # Загружаем сохраненный язык и настройку запуска, по умолчанию английский
-        _, self.language, self.start_minimized = load_monitor_config()
+        _, self.language, self.start_minimized, _ = load_monitor_config()
         if not self.language:
             self.language = "en"  # Язык интерфейса (en/ru)
 
@@ -700,11 +743,13 @@ class LGMonitorGUI:
             self.language = new_language
             # Сохраняем язык в конфиг
             if self.controller.ip:
+                # Получаем MAC адрес для текущего IP, если он есть
+                saved_ip, _, _, saved_mac = load_monitor_config()
                 save_monitor_config(
-                    self.controller.ip, self.language, self.start_minimized
+                    self.controller.ip, self.language, self.start_minimized, saved_mac
                 )
             else:
-                save_monitor_config("", self.language, self.start_minimized)
+                save_monitor_config("", self.language, self.start_minimized, None)
             # Обновляем все тексты интерфейса
             self.update_ui_texts()
             # Обновляем UI режимов
@@ -792,9 +837,13 @@ class LGMonitorGUI:
         self.start_minimized = self.start_minimized_var.get()
         # Сохраняем в конфиг
         if self.controller.ip:
-            save_monitor_config(self.controller.ip, self.language, self.start_minimized)
+            # Получаем MAC адрес для текущего IP, если он есть
+            saved_ip, _, _, saved_mac = load_monitor_config()
+            save_monitor_config(
+                self.controller.ip, self.language, self.start_minimized, saved_mac
+            )
         else:
-            save_monitor_config("", self.language, self.start_minimized)
+            save_monitor_config("", self.language, self.start_minimized, None)
 
     def start_asyncio_thread(self):
         """Запуск asyncio в отдельном потоке"""
@@ -815,12 +864,16 @@ class LGMonitorGUI:
         self.status_label.config(text=self.get_text("searching"))
 
         def search():
-            monitors = discover_lg_monitors(timeout=1)
-            self.root.after(0, self.update_monitor_list, monitors)
+            # Получаем сохраненный MAC адрес для поиска по нему
+            saved_ip, _, _, saved_mac = load_monitor_config()
+            monitors, monitors_mac = discover_lg_monitors(
+                timeout=1, saved_mac=saved_mac
+            )
+            self.root.after(0, self.update_monitor_list, monitors, monitors_mac)
 
         threading.Thread(target=search, daemon=True).start()
 
-    def update_monitor_list(self, monitors):
+    def update_monitor_list(self, monitors, monitors_mac=None):
         if monitors:
             # Если монитор уже подключен и есть название модели, сохраняем его
             if self.connected and self.controller.ip and self.controller.model_name:
@@ -837,6 +890,46 @@ class LGMonitorGUI:
                 monitors = updated_monitors
 
             self.monitor_list["values"] = monitors
+
+            # Проверяем, изменился ли IP для сохраненного MAC адреса
+            saved_ip, _, _, saved_mac = load_monitor_config()
+            if saved_mac and monitors_mac:
+                # Ищем монитор по сохраненному MAC адресу
+                for ip, mac in monitors_mac.items():
+                    if mac.lower() == saved_mac.lower():
+                        # Если IP изменился, обновляем его
+                        if ip != saved_ip:
+                            print(
+                                f"IP адрес изменился: {saved_ip} -> {ip} (MAC: {mac})"
+                            )
+                            # Удаляем старый ключ, так как он привязан к старому IP
+                            if os.path.exists(WEBOS_KEY_FILE):
+                                try:
+                                    os.remove(WEBOS_KEY_FILE)
+                                    print(
+                                        f"Удален старый ключ для IP {saved_ip}, будет запрошен новый ключ для IP {ip}"
+                                    )
+                                except Exception as e:
+                                    print(f"Не удалось удалить старый ключ: {e}")
+                            # Если монитор был подключен, отключаем его
+                            if self.connected:
+                                self.connected = False
+                                # Останавливаем мониторинг HDR
+                                self.stop_hdr_monitoring()
+                                # Показываем кнопку подключения
+                                if self.connect_button:
+                                    self.connect_button.pack(pady=5)
+                                # Обновляем статус
+                                self.status_label.config(text=self.get_text("ready"))
+                            self.controller.ip = ip
+                            # Обновляем сохраненный IP в конфиге
+                            save_monitor_config(
+                                ip, self.language, self.start_minimized, mac
+                            )
+                            # Если монитор был подключен, обновляем отображаемое имя
+                            if self.controller.model_name:
+                                self.update_monitor_display_name()
+                        break
 
             # Устанавливаем текущий выбор на подключенный монитор, если он есть
             if self.connected and self.controller.ip and self.controller.model_name:
@@ -913,8 +1006,15 @@ class LGMonitorGUI:
             self.status_label.config(text=status_text)
             # Обновляем отображаемое имя в списке мониторов
             self.update_monitor_display_name()
-            # Сохраняем IP при успешном подключении
-            save_monitor_config(self.controller.ip, self.language, self.start_minimized)
+            # Получаем MAC адрес для текущего IP из ARP таблицы
+            ip_mac_map = get_ip_mac_mapping()
+            mac_address = ip_mac_map.get(self.controller.ip)
+            if mac_address:
+                print(f"MAC адрес монитора: {mac_address}")
+            # Сохраняем IP и MAC адрес при успешном подключении
+            save_monitor_config(
+                self.controller.ip, self.language, self.start_minimized, mac_address
+            )
             # Обновляем список режимов в зависимости от текущего HDR состояния
             self.update_modes_based_on_hdr()
             # Скрываем кнопку подключения, так как мониторинг работает автоматически
@@ -1050,7 +1150,7 @@ class LGMonitorGUI:
 
     def load_and_connect_saved_monitor(self):
         """Загрузить сохраненный IP и попытаться подключиться"""
-        saved_ip, _, _ = load_monitor_config()
+        saved_ip, _, _, saved_mac = load_monitor_config()
         if saved_ip:
             self.monitor_var.set(saved_ip)
             self.monitor_list["values"] = [saved_ip]
@@ -1376,7 +1476,7 @@ async def console_version():
     controller = LGMonitorController()
 
     print("=== Поиск мониторов ===")
-    monitors = discover_lg_monitors(timeout=1)
+    monitors, monitors_mac = discover_lg_monitors(timeout=1)
 
     if not monitors:
         print("Мониторы не найдены")
@@ -1485,7 +1585,7 @@ if __name__ == "__main__":
 
             # Определяем язык для сообщения (пробуем загрузить из конфига)
             try:
-                saved_ip, language, _ = load_monitor_config()
+                saved_ip, language, _, _ = load_monitor_config()
                 if not language:
                     language = "en"
             except:

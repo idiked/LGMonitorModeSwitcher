@@ -14,6 +14,20 @@ A Windows application for switching picture modes on LG webOS monitors.
 - Monitor should have a static IP address (recommended)
 - Windows operating system
 
+## Monitor Settings
+
+For optimal functionality, configure your monitor with the following settings:
+
+- **Support - IP Control Settings - SDDP**: On
+- **Support - IP Control Settings - Wake on LAN**: On
+- **General - External Devices - HDMI Settings - SIMPLINK (HDMI-CEC)**: On
+- **General - External Devices - Monitor On With Mobile - Turn via Wi-Fi**: On
+- **General - System - Additional Settings - Quick Start+**: On
+
+**Note**: This application has been tested with these settings on Windows 11 25H2 with monitor LG UltraGear 39GX90SA-W.
+
+**Tip**: For automatic monitor wake-up after PC resumes from sleep, I recommend using [LGTV Companion](https://github.com/JPersson77/LGTVCompanion).
+
 ## Dependencies
 
 This application is built using the following open-source libraries:
@@ -72,6 +86,20 @@ The application will minimize to the system tray. You can access all features by
 - ПК и монитор должны быть подключены к одной сети
 - Монитору желательно иметь статический IP адрес
 - Операционная система Windows
+
+## Настройки монитора
+
+Для оптимальной работы настройте монитор со следующими параметрами:
+
+- **Поддержка - Настройки управления IP-адресами - SDDP**: Вкл
+- **Поддержка - Настройки управления IP-адресами - Включение по сети LAN**: Вкл
+- **Общие - Внешние устройства - Настройки HDMI - SIMPLINK (HDMI-CEC)**: Вкл
+- **Общие - Внешние устройства - Включение монитора с мобильного устройства - Включить через Wi-Fi**: Вкл
+- **Общие - Система - Дополнительные настройки - Быстрая загрузка+**: Вкл
+
+**Примечание**: Программа протестирована с такими настройками на Windows 11 25H2, монитор LG UltraGear 39GX90SA.
+
+**Совет**: Для автоматического включения монитора после выхода ПК из сна рекомендую использовать [LGTV Companion](https://github.com/JPersson77/LGTVCompanion).
 
 ## Зависимости
 
