@@ -50,7 +50,7 @@ WEBOS_KEY_FILE = os.path.join(BASE_DIR, "webos_key.json")
 # Словарь переводов интерфейса
 UI_TRANSLATIONS = {
     "en": {
-        "title": "LG Monitor Mode Switcher",
+        "title": "LG Mode Switcher",
         "language_label": "Language:",
         "search_monitors": "Search Monitors",
         "find_monitors": "Find Monitors",
@@ -78,11 +78,20 @@ UI_TRANSLATIONS = {
         "mode_label": "Mode:",
         "autostart": "Start with Windows",
         "start_minimized": "Start minimized",
+        "close_to_tray": "Close to tray",
+        "theme": "Theme:",
+        "theme_light": "Light",
+        "theme_dark": "Dark",
         "already_running": "Application is already running!",
         "already_running_msg": "The application is already running!\n\nPlease check the system tray.",
+        "settings": "Picture Settings",
+        "brightness": "OLED Brightness",
+        "black_level": "Black Level",
+        "color_depth": "Color Depth",
+        "reset_settings": "Reset to Default",
     },
     "ru": {
-        "title": "Переключатель режимов монитора LG",
+        "title": "Переключатель режимов LG",
         "language_label": "Язык:",
         "search_monitors": "Поиск мониторов",
         "find_monitors": "Найти мониторы",
@@ -110,8 +119,17 @@ UI_TRANSLATIONS = {
         "mode_label": "Режим:",
         "autostart": "Запуск с Windows",
         "start_minimized": "Запускать свернутой",
+        "close_to_tray": "Закрывать в трей",
+        "theme": "Тема:",
+        "theme_light": "Светлая",
+        "theme_dark": "Темная",
         "already_running": "Приложение уже запущено!",
         "already_running_msg": "Приложение уже запущено!\n\nПроверьте системный трей.",
+        "settings": "Настройки изображения",
+        "brightness": "Яркость",
+        "black_level": "Уровень черного",
+        "color_depth": "Глубина цвета",
+        "reset_settings": "Сбросить по умолчанию",
     },
 }
 
@@ -140,12 +158,12 @@ MODE_TRANSLATIONS = {
     "ru": {
         "personalized": "Персонализированное изображение",
         "game": "Оптимизация игр",
-        "normal": "Нормальный",
+        "normal": "Стандартный",
         "vivid": "Яркий",
         "cinema": "Кино",
         "sports": "Спорт",
         "eco": "Автоматическое энергосбережение",
-        "filmMaker": "Кинематографист",
+        "filmMaker": "FilmMaker",
         "expert1": "Эксперт 1",
         "expert2": "Эксперт 2",
         "hdrPersonalized": "HDR Персонализированное изображение",
@@ -155,7 +173,7 @@ MODE_TRANSLATIONS = {
         "hdrCinemaBright": "HDR Кинотеатр",
         "hdrVivid": "HDR Яркий",
         "hdrEco": "HDR Автоматическое энергосбережение",
-        "hdrFilmMaker": "HDR Кинематографист",
+        "hdrFilmMaker": "HDR FilmMaker",
     },
 }
 
@@ -175,18 +193,61 @@ def get_mode_from_translation(translated_mode: str, language: str = "en") -> str
     return translated_mode
 
 
+def can_adjust_black_level(mode: str) -> bool:
+    """Проверить, можно ли изменять уровень черного в данном режиме"""
+    # Уровень черного нельзя изменять в режимах game, hdrGame
+    blocked_modes = ["game", "hdrGame"]
+    return mode not in blocked_modes
+
+
+def can_adjust_color_depth(mode: str) -> bool:
+    """Проверить, можно ли изменять глубину цвета в данном режиме"""
+    # Глубину цвета нельзя изменять в режимах personalized, hdrPersonalized, game, hdrGame
+    blocked_modes = ["personalized", "hdrPersonalized", "game", "hdrGame"]
+    return mode not in blocked_modes
+
+
+# Настройки по умолчанию для каждого режима (яркость, уровень черного, глубина цвета)
+DEFAULT_MODE_SETTINGS = {
+    # HDR режимы
+    "hdrPersonalized": (100, 50, 65),
+    "hdrVivid": (100, 50, 70),
+    "hdrStandard": (100, 50, 55),
+    "hdrEco": (100, 50, 65),
+    "hdrCinemaBright": (100, 50, 60),
+    "hdrCinema": (100, 50, 50),
+    "hdrGame": (100, 50, 55),
+    "hdrFilmMaker": (100, 50, 50),
+    # SDR режимы
+    "personalized": (100, 50, 55),
+    "vivid": (100, 50, 70),
+    "normal": (90, 50, 55),
+    "eco": (90, 50, 60),
+    "cinema": (80, 50, 50),
+    "sports": (100, 50, 80),
+    "game": (95, 50, 55),
+    "filmMaker": (80, 50, 50),
+    "expert1": (90, 50, 50),
+    "expert2": (60, 50, 50),
+}
+
+
 def save_monitor_config(
     ip: str,
     language: str = "en",
     start_minimized: bool = False,
     mac: Optional[str] = None,
+    close_to_tray: bool = True,
+    theme: str = "light",
 ):
-    """Сохранить IP адрес монитора, MAC адрес, язык и настройку запуска в конфигурационный файл"""
+    """Сохранить IP адрес монитора, MAC адрес, язык и все настройки в конфигурационный файл"""
     try:
         config = {
             "last_monitor_ip": ip,
             "language": language,
             "start_minimized": start_minimized,
+            "close_to_tray": close_to_tray,
+            "theme": theme,
         }
         if mac:
             config["last_monitor_mac"] = mac
@@ -196,8 +257,8 @@ def save_monitor_config(
         print(f"Ошибка сохранения конфигурации: {e}")
 
 
-def load_monitor_config() -> tuple[Optional[str], str, bool, Optional[str]]:
-    """Загрузить IP адрес, MAC адрес последнего подключенного монитора, язык и настройку запуска"""
+def load_monitor_config() -> tuple[Optional[str], str, bool, Optional[str], bool, str]:
+    """Загрузить IP адрес, MAC адрес последнего подключенного монитора, язык и настройки"""
     try:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -206,10 +267,12 @@ def load_monitor_config() -> tuple[Optional[str], str, bool, Optional[str]]:
                 language = config.get("language", "en")
                 start_minimized = config.get("start_minimized", False)
                 mac = config.get("last_monitor_mac")
-                return ip, language, start_minimized, mac
+                close_to_tray = config.get("close_to_tray", True)
+                theme = config.get("theme", "light")
+                return ip, language, start_minimized, mac, close_to_tray, theme
     except Exception as e:
         print(f"Ошибка загрузки конфигурации: {e}")
-    return None, "en", False, None
+    return None, "en", False, None, True, "light"
 
 
 # ============================================================================
@@ -506,8 +569,25 @@ class LGMonitorController:
             print(f"Ошибка подписки на изменения picture mode: {e}")
             return False
 
+    async def subscribe_picture_settings_changes(self, callback):
+        """Подписаться на изменения настроек изображения (яркость, уровень черного, глубина цвета)"""
+        if not self.client:
+            return False
+
+        try:
+            self.picture_settings_callback = callback
+            # Подписываемся на изменения всех параметров
+            await self.client.subscribe_picture_settings(
+                self._on_all_picture_settings_change,
+                keys=["backlight", "brightness", "color"],
+            )
+            return True
+        except Exception as e:
+            print(f"Ошибка подписки на изменения настроек: {e}")
+            return False
+
     async def _on_picture_settings_change(self, settings):
-        """Обработчик изменений настроек изображения"""
+        """Обработчик изменений настроек изображения (только pictureMode)"""
         if settings and "pictureMode" in settings and self.picture_mode_callback:
             picture_mode = settings["pictureMode"]
             # Вызываем callback (может быть async или sync)
@@ -515,6 +595,67 @@ class LGMonitorController:
                 await self.picture_mode_callback(picture_mode)
             else:
                 self.picture_mode_callback(picture_mode)
+
+    async def _on_all_picture_settings_change(self, settings):
+        """Обработчик изменений всех настроек изображения"""
+        if settings and self.picture_settings_callback:
+            # Вызываем callback (может быть async или sync)
+            if asyncio.iscoroutinefunction(self.picture_settings_callback):
+                await self.picture_settings_callback(settings)
+            else:
+                self.picture_settings_callback(settings)
+
+    async def get_picture_setting(self, key: str) -> Optional[int]:
+        """Получить значение параметра изображения"""
+        if not self.client:
+            return None
+
+        try:
+            payload = {"category": "picture", "keys": [key]}
+            result = await self.client.request("settings/getSystemSettings", payload)
+            if result and "settings" in result and key in result["settings"]:
+                value = result["settings"][key]
+                return int(value) if isinstance(value, (str, int)) else None
+        except Exception as e:
+            print(f"Ошибка получения {key}: {e}")
+        return None
+
+    async def set_picture_setting(self, key: str, value: int) -> bool:
+        """Установить значение параметра изображения"""
+        if not self.client:
+            return False
+
+        try:
+            payload = {"category": "picture", "settings": {key: value}}
+            result = await self.client.request("settings/setSystemSettings", payload)
+            return result.get("returnValue", False)
+        except Exception as e:
+            print(f"Ошибка установки {key}: {e}")
+            return False
+
+    async def get_brightness(self) -> Optional[int]:
+        """Получить яркость (backlight)"""
+        return await self.get_picture_setting("backlight")
+
+    async def set_brightness(self, value: int) -> bool:
+        """Установить яркость (backlight)"""
+        return await self.set_picture_setting("backlight", value)
+
+    async def get_black_level(self) -> Optional[int]:
+        """Получить уровень черного (brightness)"""
+        return await self.get_picture_setting("brightness")
+
+    async def set_black_level(self, value: int) -> bool:
+        """Установить уровень черного (brightness)"""
+        return await self.set_picture_setting("brightness", value)
+
+    async def get_color_depth(self) -> Optional[int]:
+        """Получить глубину цвета (color)"""
+        return await self.get_picture_setting("color")
+
+    async def set_color_depth(self, value: int) -> bool:
+        """Установить глубину цвета (color)"""
+        return await self.set_picture_setting("color", value)
 
     async def disconnect(self):
         """Отключение"""
@@ -530,13 +671,14 @@ class LGMonitorController:
 class LGMonitorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.geometry("500x450")
+        self.root.geometry("550x650")  # Увеличили для ползунков
         self.root.resizable(False, False)  # Запрещаем изменение размеров окна
 
         self.controller = LGMonitorController()
         self.controller._gui_mode = (
             True  # Флаг для GUI режима (не открываем окно настроек Windows)
         )
+        self.controller.picture_settings_callback = None  # Callback для настроек
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.connected = False
         self.tray_icon = None
@@ -545,10 +687,40 @@ class LGMonitorGUI:
         self.connect_button = None  # Кнопка подключения/обновления
         self.hdr_monitor_task = None  # Задача мониторинга HDR
         self._hdr_check_id = None  # ID для периодической проверки HDR
-        # Загружаем сохраненный язык и настройку запуска, по умолчанию английский
-        _, self.language, self.start_minimized, _ = load_monitor_config()
+        self.current_picture_mode = None  # Текущий режим для проверки ограничений
+
+        # Переменные для ползунков
+        self.brightness_var = tk.IntVar(value=50)
+        self.black_level_var = tk.IntVar(value=50)
+        self.color_depth_var = tk.IntVar(value=50)
+
+        # Виджеты ползунков (для блокировки/разблокировки)
+        self.brightness_label = None
+        self.brightness_value_label = None
+        self.black_level_scale = None
+        self.black_level_label = None
+        self.black_level_value_label = None
+        self.color_depth_scale = None
+        self.color_depth_label = None
+        self.color_depth_value_label = None
+
+        # Таймеры для debounce (задержка перед отправкой)
+        self._brightness_timer = None
+        self._black_level_timer = None
+        self._color_depth_timer = None
+
+        # Флаг для игнорирования обновлений из WebOS (чтобы не создавать циклы)
+        self._updating_from_webos = False
+
+        # Загружаем сохраненные настройки
+        _, self.language, self.start_minimized, _, self.close_to_tray, _ = (
+            load_monitor_config()
+        )
         if not self.language:
             self.language = "en"  # Язык интерфейса (en/ru)
+
+        # Всегда используем светлую тему
+        self.theme = "light"
 
         self.setup_ui()
         self.start_asyncio_thread()
@@ -579,35 +751,52 @@ class LGMonitorGUI:
         # Устанавливаем заголовок окна
         self.root.title(self.get_text("title"))
 
+        # Настраиваем стили один раз
+        self.setup_styles()
+
+        # Верхняя панель с заголовком и иконками переключения
+        top_frame = ttk.Frame(self.root)
+        top_frame.pack(pady=10, fill=tk.X)
+
         # Заголовок
         self.title_label = ttk.Label(
-            self.root, text=self.get_text("title"), font=("Arial", 16, "bold")
+            top_frame, text=self.get_text("title"), font=("Arial", 16, "bold")
         )
-        self.title_label.pack(pady=10)
+        self.title_label.pack(side=tk.LEFT, padx=(20, 0))
 
-        # Переключатель языка
-        lang_frame = ttk.Frame(self.root)
-        lang_frame.pack(pady=5)
-        self.language_label = ttk.Label(
-            lang_frame, text=self.get_text("language_label")
-        )
-        self.language_label.pack(side=tk.LEFT, padx=5)
+        # Иконки переключения справа
+        controls_frame = ttk.Frame(top_frame)
+        controls_frame.pack(side=tk.RIGHT, padx=(0, 20))
+
+        # Кнопка переключения языка - текст EN/RU
         self.language_var = tk.StringVar(value=self.language)
-        lang_combo = ttk.Combobox(
-            lang_frame,
-            textvariable=self.language_var,
-            values=["en", "ru"],
-            state="readonly",
-            width=10,
+        lang_text = self.language.upper()  # EN или RU
+        self.lang_button = tk.Button(
+            controls_frame,
+            text=lang_text,
+            font=("Arial", 9, "bold"),
+            command=self.toggle_language_icon,
+            relief="flat",
+            cursor="hand2",
+            width=3,
+            height=1,
+            padx=4,
+            pady=2,
+            bg="#f0f0f0",
+            fg="#000000",
+            activebackground="#e0e0e0",
         )
-        lang_combo.pack(side=tk.LEFT, padx=5)
-        lang_combo.bind("<<ComboboxSelected>>", self.on_language_change)
+        self.lang_button.pack(side=tk.LEFT, padx=3)
+
+        # Настройки
+        settings_frame = ttk.Frame(self.root)
+        settings_frame.pack(pady=5)
 
         # Чекбокс автозапуска (только для Windows)
         if platform.system() == "Windows":
             self.autostart_var = tk.BooleanVar(value=self.is_autostart_enabled())
             self.autostart_check = ttk.Checkbutton(
-                lang_frame,
+                settings_frame,
                 text=self.get_text("autostart"),
                 variable=self.autostart_var,
                 command=self.toggle_autostart,
@@ -617,12 +806,22 @@ class LGMonitorGUI:
         # Чекбокс "запускать свернутой"
         self.start_minimized_var = tk.BooleanVar(value=self.start_minimized)
         self.start_minimized_check = ttk.Checkbutton(
-            lang_frame,
+            settings_frame,
             text=self.get_text("start_minimized"),
             variable=self.start_minimized_var,
             command=self.toggle_start_minimized,
         )
         self.start_minimized_check.pack(side=tk.LEFT, padx=10)
+
+        # Чекбокс "закрывать в трей"
+        self.close_to_tray_var = tk.BooleanVar(value=self.close_to_tray)
+        self.close_to_tray_check = ttk.Checkbutton(
+            settings_frame,
+            text=self.get_text("close_to_tray"),
+            variable=self.close_to_tray_var,
+            command=self.toggle_close_to_tray,
+        )
+        self.close_to_tray_check.pack(side=tk.LEFT, padx=10)
 
         # Поиск мониторов
         self.search_frame = ttk.LabelFrame(
@@ -699,6 +898,27 @@ class LGMonitorGUI:
         )
         self.apply_button.pack(side=tk.LEFT, padx=5)
 
+        # Настройки изображения (ползунки)
+        self.settings_frame = ttk.LabelFrame(
+            self.root, text=self.get_text("settings"), padding=15
+        )
+        self.settings_frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
+
+        # Создаем ползунки
+        self.create_brightness_slider()
+        self.create_black_level_slider()
+        self.create_color_depth_slider()
+
+        # Кнопка сброса настроек
+        reset_frame = ttk.Frame(self.settings_frame)
+        reset_frame.pack(fill=tk.X, pady=(15, 5))
+        self.reset_button = ttk.Button(
+            reset_frame,
+            text=self.get_text("reset_settings"),
+            command=self.reset_picture_settings,
+        )
+        self.reset_button.pack(side=tk.RIGHT)
+
         # Подсказка
         self.hint_frame = ttk.Frame(self.root)
         self.hint_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=5)
@@ -712,15 +932,303 @@ class LGMonitorGUI:
 
         # Статус
         self.status_label = ttk.Label(
-            self.root, text=self.get_text("ready"), relief=tk.SUNKEN
+            self.root, text=self.get_text("ready"), font=("TkDefaultFont", 9)
         )
-        self.status_label.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
+        self.status_label.pack(pady=5)
+
+    def create_brightness_slider(self):
+        """Создать ползунок яркости"""
+        frame = ttk.Frame(self.settings_frame)
+        frame.pack(fill=tk.X, pady=8)
+
+        self.brightness_label = ttk.Label(
+            frame,
+            text=self.get_text("brightness"),
+            width=15,
+            anchor=tk.W,
+        )
+        self.brightness_label.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.brightness_value_label = ttk.Label(frame, text="50", width=3)
+        self.brightness_value_label.pack(side=tk.RIGHT, padx=(10, 0))
+
+        scale = ttk.Scale(
+            frame,
+            from_=0,
+            to=100,
+            variable=self.brightness_var,
+            orient=tk.HORIZONTAL,
+            command=lambda v: self.on_brightness_change(v),
+        )
+        scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+
+        # Обновляем метку при изменении переменной
+        self.brightness_var.trace_add(
+            "write",
+            lambda *args: self.brightness_value_label.config(
+                text=str(int(self.brightness_var.get()))
+            ),
+        )
+
+    def create_black_level_slider(self):
+        """Создать ползунок уровня черного"""
+        frame = ttk.Frame(self.settings_frame)
+        frame.pack(fill=tk.X, pady=8)
+
+        self.black_level_label = ttk.Label(
+            frame,
+            text=self.get_text("black_level"),
+            width=15,
+            anchor=tk.W,
+        )
+        self.black_level_label.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.black_level_value_label = ttk.Label(frame, text="50", width=3)
+        self.black_level_value_label.pack(side=tk.RIGHT, padx=(10, 0))
+
+        self.black_level_scale = ttk.Scale(
+            frame,
+            from_=0,
+            to=100,
+            variable=self.black_level_var,
+            orient=tk.HORIZONTAL,
+            command=lambda v: self.on_black_level_change(v),
+        )
+        self.black_level_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+
+        # Обновляем метку при изменении переменной
+        self.black_level_var.trace_add(
+            "write",
+            lambda *args: self.black_level_value_label.config(
+                text=str(int(self.black_level_var.get()))
+            ),
+        )
+
+    def create_color_depth_slider(self):
+        """Создать ползунок глубины цвета"""
+        frame = ttk.Frame(self.settings_frame)
+        frame.pack(fill=tk.X, pady=8)
+
+        self.color_depth_label = ttk.Label(
+            frame,
+            text=self.get_text("color_depth"),
+            width=15,
+            anchor=tk.W,
+        )
+        self.color_depth_label.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.color_depth_value_label = ttk.Label(frame, text="50", width=3)
+        self.color_depth_value_label.pack(side=tk.RIGHT, padx=(10, 0))
+
+        self.color_depth_scale = ttk.Scale(
+            frame,
+            from_=0,
+            to=100,
+            variable=self.color_depth_var,
+            orient=tk.HORIZONTAL,
+            command=lambda v: self.on_color_depth_change(v),
+        )
+        self.color_depth_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=10)
+
+        # Обновляем метку при изменении переменной
+        self.color_depth_var.trace_add(
+            "write",
+            lambda *args: self.color_depth_value_label.config(
+                text=str(int(self.color_depth_var.get()))
+            ),
+        )
+
+    def on_brightness_change(self, value):
+        """Обработчик изменения яркости с задержкой (debounce)"""
+        if not self.connected or self._updating_from_webos:
+            return
+
+        # Отменяем предыдущий таймер, если есть
+        if self._brightness_timer:
+            self.root.after_cancel(self._brightness_timer)
+
+        # Устанавливаем новый таймер на 300мс
+        int_value = int(float(value))
+        self._brightness_timer = self.root.after(
+            300, lambda: self._send_brightness(int_value)
+        )
+
+    def _send_brightness(self, value):
+        """Отправить значение яркости на монитор"""
+
+        async def set_value():
+            await self.controller.set_brightness(value)
+
+        self.run_async(set_value())
+
+    def on_black_level_change(self, value):
+        """Обработчик изменения уровня черного с задержкой (debounce)"""
+        if not self.connected or self._updating_from_webos:
+            return
+
+        # Проверяем, разрешено ли изменение в текущем режиме
+        if self.current_picture_mode and not can_adjust_black_level(
+            self.current_picture_mode
+        ):
+            return
+
+        # Отменяем предыдущий таймер, если есть
+        if self._black_level_timer:
+            self.root.after_cancel(self._black_level_timer)
+
+        # Устанавливаем новый таймер на 300мс
+        int_value = int(float(value))
+        self._black_level_timer = self.root.after(
+            300, lambda: self._send_black_level(int_value)
+        )
+
+    def _send_black_level(self, value):
+        """Отправить значение уровня черного на монитор"""
+
+        async def set_value():
+            await self.controller.set_black_level(value)
+
+        self.run_async(set_value())
+
+    def on_color_depth_change(self, value):
+        """Обработчик изменения глубины цвета с задержкой (debounce)"""
+        if not self.connected or self._updating_from_webos:
+            return
+
+        # Проверяем, разрешено ли изменение в текущем режиме
+        if self.current_picture_mode and not can_adjust_color_depth(
+            self.current_picture_mode
+        ):
+            return
+
+        # Отменяем предыдущий таймер, если есть
+        if self._color_depth_timer:
+            self.root.after_cancel(self._color_depth_timer)
+
+        # Устанавливаем новый таймер на 300мс
+        int_value = int(float(value))
+        self._color_depth_timer = self.root.after(
+            300, lambda: self._send_color_depth(int_value)
+        )
+
+    def _send_color_depth(self, value):
+        """Отправить значение глубины цвета на монитор"""
+
+        async def set_value():
+            await self.controller.set_color_depth(value)
+
+        self.run_async(set_value())
+
+    def update_slider_states(self):
+        """Обновить состояние ползунков в зависимости от режима"""
+        if not self.current_picture_mode:
+            return
+
+        # Проверяем доступность параметров
+        can_black = can_adjust_black_level(self.current_picture_mode)
+        can_color = can_adjust_color_depth(self.current_picture_mode)
+
+        # Уровень черного
+        if can_black:
+            self.black_level_scale.state(["!disabled"])
+            self.black_level_label.config(foreground="black")
+        else:
+            self.black_level_scale.state(["disabled"])
+            self.black_level_label.config(foreground="gray")
+
+        # Глубина цвета
+        if can_color:
+            self.color_depth_scale.state(["!disabled"])
+            self.color_depth_label.config(foreground="black")
+        else:
+            self.color_depth_scale.state(["disabled"])
+            self.color_depth_label.config(foreground="gray")
+
+    def load_slider_values(self):
+        """Загрузить текущие значения с монитора"""
+        if not self.connected:
+            return
+
+        async def load_values():
+            try:
+                brightness = await self.controller.get_brightness()
+                black_level = await self.controller.get_black_level()
+                color_depth = await self.controller.get_color_depth()
+
+                def update_ui():
+                    if brightness is not None:
+                        self.brightness_var.set(brightness)
+                        self.black_level_value_label.config(text=str(brightness))
+                    if black_level is not None:
+                        self.black_level_var.set(black_level)
+                        self.black_level_value_label.config(text=str(black_level))
+                    if color_depth is not None:
+                        self.color_depth_var.set(color_depth)
+                        self.color_depth_value_label.config(text=str(color_depth))
+
+                self.root.after(0, update_ui)
+            except Exception as e:
+                print(f"Ошибка загрузки значений: {e}")
+
+        self.run_async(load_values())
+
+    def reset_picture_settings(self):
+        """Сбросить настройки изображения на значения по умолчанию для текущего режима"""
+        if not self.connected or not self.current_picture_mode:
+            return
+
+        # Получаем настройки по умолчанию для текущего режима
+        if self.current_picture_mode not in DEFAULT_MODE_SETTINGS:
+            print(f"Нет настроек по умолчанию для режима {self.current_picture_mode}")
+            return
+
+        default_brightness, default_black_level, default_color_depth = (
+            DEFAULT_MODE_SETTINGS[self.current_picture_mode]
+        )
+
+        async def apply_defaults():
+            try:
+                # Всегда применяем яркость
+                await self.controller.set_brightness(default_brightness)
+
+                # Применяем уровень черного только если это разрешено
+                if can_adjust_black_level(self.current_picture_mode):
+                    await self.controller.set_black_level(default_black_level)
+
+                # Применяем глубину цвета только если это разрешено
+                if can_adjust_color_depth(self.current_picture_mode):
+                    await self.controller.set_color_depth(default_color_depth)
+
+                # Обновляем UI
+                def update_ui():
+                    self.brightness_var.set(default_brightness)
+                    if can_adjust_black_level(self.current_picture_mode):
+                        self.black_level_var.set(default_black_level)
+                    if can_adjust_color_depth(self.current_picture_mode):
+                        self.color_depth_var.set(default_color_depth)
+
+                    # Обновляем статус
+                    self.status_label.config(
+                        text=f"✓ {self.get_text('reset_settings')}"
+                    )
+
+                self.root.after(0, update_ui)
+                print(
+                    f"Сброс настроек для режима {self.current_picture_mode}: яркость={default_brightness}, уровень черного={default_black_level}, глубина цвета={default_color_depth}"
+                )
+
+            except Exception as e:
+                print(f"Ошибка сброса настроек: {e}")
+                self.root.after(
+                    0, lambda: self.status_label.config(text=f"✗ Ошибка сброса")
+                )
+
+        self.run_async(apply_defaults())
 
     def update_ui_texts(self):
         """Обновить все тексты интерфейса при смене языка"""
         self.root.title(self.get_text("title"))
         self.title_label.config(text=self.get_text("title"))
-        self.language_label.config(text=self.get_text("language_label"))
         self.search_frame.config(text=self.get_text("search_monitors"))
         self.find_button.config(text=self.get_text("find_monitors"))
         self.connect_button.config(text=self.get_text("connect"))
@@ -734,23 +1242,67 @@ class LGMonitorGUI:
         # Обновляем текст чекбокса "запускать свернутой"
         if hasattr(self, "start_minimized_check"):
             self.start_minimized_check.config(text=self.get_text("start_minimized"))
-        if not self.connected:
-            self.status_label.config(text=self.get_text("ready"))
+        # Обновляем текст чекбокса "закрывать в трей"
+        if hasattr(self, "close_to_tray_check"):
+            self.close_to_tray_check.config(text=self.get_text("close_to_tray"))
+        # Обновляем тексты настроек изображения
+        if hasattr(self, "settings_frame"):
+            self.settings_frame.config(text=self.get_text("settings"))
+        if hasattr(self, "brightness_label"):
+            self.brightness_label.config(text=self.get_text("brightness"))
+        if hasattr(self, "black_level_label"):
+            self.black_level_label.config(text=self.get_text("black_level"))
+        if hasattr(self, "color_depth_label"):
+            self.color_depth_label.config(text=self.get_text("color_depth"))
+        if hasattr(self, "reset_button"):
+            self.reset_button.config(text=self.get_text("reset_settings"))
+        # Обновляем статус
+        if hasattr(self, "status_label"):
+            if not self.connected:
+                self.status_label.config(text=self.get_text("ready"))
+            # Если подключен, статус обновится автоматически при следующем изменении
+
+    def toggle_language_icon(self):
+        """Переключить язык через кнопку-иконку"""
+        # Переключаем язык
+        new_language = "ru" if self.language == "en" else "en"
+        self.language = new_language
+        self.language_var.set(new_language)
+
+        # Обновляем текст на кнопке
+        lang_text = new_language.upper()  # EN или RU
+        self.lang_button.config(text=lang_text)
+
+        # Очищаем строку состояния (будет обновлена при следующем событии)
+        if hasattr(self, "status_label"):
+            if self.connected:
+                self.status_label.config(text="")
+            else:
+                # Если не подключены, показываем "Готов"
+                self.status_label.config(text=self.get_text("ready"))
+
+        # Сохраняем настройки и обновляем интерфейс
+        self.save_all_settings()
+        self.update_ui_texts()
+
+        # Обновляем UI режимов
+        if self.connected:
+            self._update_modes_ui(
+                self.current_hdr_state if self.current_hdr_state is not None else False
+            )
+
+        # Обновляем меню трея
+        if TRAY_AVAILABLE and self.tray_icon:
+            self.update_tray_menu()
 
     def on_language_change(self, event=None):
-        """Обработчик изменения языка"""
+        """Обработчик изменения языка (старый метод для совместимости)"""
         new_language = self.language_var.get()
         if new_language != self.language:
             self.language = new_language
             # Сохраняем язык в конфиг
-            if self.controller.ip:
-                # Получаем MAC адрес для текущего IP, если он есть
-                saved_ip, _, _, saved_mac = load_monitor_config()
-                save_monitor_config(
-                    self.controller.ip, self.language, self.start_minimized, saved_mac
-                )
-            else:
-                save_monitor_config("", self.language, self.start_minimized, None)
+            # Используем общий метод сохранения
+            self.save_all_settings()
             # Обновляем все тексты интерфейса
             self.update_ui_texts()
             # Обновляем UI режимов
@@ -836,15 +1388,25 @@ class LGMonitorGUI:
     def toggle_start_minimized(self):
         """Переключить настройку запуска свернутой"""
         self.start_minimized = self.start_minimized_var.get()
-        # Сохраняем в конфиг
-        if self.controller.ip:
-            # Получаем MAC адрес для текущего IP, если он есть
-            saved_ip, _, _, saved_mac = load_monitor_config()
-            save_monitor_config(
-                self.controller.ip, self.language, self.start_minimized, saved_mac
-            )
-        else:
-            save_monitor_config("", self.language, self.start_minimized, None)
+        self.save_all_settings()
+
+    def toggle_close_to_tray(self):
+        """Переключить настройку закрытия в трей"""
+        self.close_to_tray = self.close_to_tray_var.get()
+        self.save_all_settings()
+
+    def save_all_settings(self):
+        """Сохранить все настройки в конфиг"""
+        saved_ip, _, _, saved_mac, _, _ = load_monitor_config()
+        ip = self.controller.ip if self.controller.ip else saved_ip if saved_ip else ""
+        save_monitor_config(
+            ip,
+            self.language,
+            self.start_minimized,
+            saved_mac,
+            self.close_to_tray,
+            self.theme,
+        )
 
     def start_asyncio_thread(self):
         """Запуск asyncio в отдельном потоке"""
@@ -866,7 +1428,7 @@ class LGMonitorGUI:
 
         def search():
             # Получаем сохраненный MAC адрес для поиска по нему
-            saved_ip, _, _, saved_mac = load_monitor_config()
+            saved_ip, _, _, saved_mac, _, _ = load_monitor_config()
             monitors, monitors_mac = discover_lg_monitors(
                 timeout=1, saved_mac=saved_mac
             )
@@ -893,7 +1455,7 @@ class LGMonitorGUI:
             self.monitor_list["values"] = monitors
 
             # Проверяем, изменился ли IP для сохраненного MAC адреса
-            saved_ip, _, _, saved_mac = load_monitor_config()
+            saved_ip, _, _, saved_mac, _, _ = load_monitor_config()
             if saved_mac and monitors_mac:
                 # Ищем монитор по сохраненному MAC адресу
                 for ip, mac in monitors_mac.items():
@@ -1104,11 +1666,17 @@ class LGMonitorGUI:
                 current_mode = await self.controller.get_current_picture_mode()
                 print(f"DEBUG: Текущий режим с монитора: {current_mode}")
                 if current_mode and current_mode in modes:
+                    # Сохраняем текущий режим
+                    self.current_picture_mode = current_mode
                     # Устанавливаем переведенное значение
                     translated_mode = get_mode_translation(current_mode, self.language)
 
                     def set_mode_value(value):
                         self.mode_var.set(value)
+                        # Обновляем состояние ползунков
+                        self.update_slider_states()
+                        # Загружаем значения
+                        self.load_slider_values()
 
                     self.root.after(0, set_mode_value, translated_mode)
                     print(f"DEBUG: Установлен текущий режим: {translated_mode}")
@@ -1152,7 +1720,7 @@ class LGMonitorGUI:
 
     def load_and_connect_saved_monitor(self):
         """Загрузить сохраненный IP и попытаться подключиться"""
-        saved_ip, _, _, saved_mac = load_monitor_config()
+        saved_ip, _, _, saved_mac, _, _ = load_monitor_config()
         if saved_ip:
             self.monitor_var.set(saved_ip)
             self.monitor_list["values"] = [saved_ip]
@@ -1229,6 +1797,57 @@ class LGMonitorGUI:
         # Подписываемся на изменения на мониторе
         self.run_async(
             self.controller.subscribe_picture_mode_changes(on_picture_mode_change)
+        )
+
+        # Подписка на изменения настроек изображения (яркость, уровень черного, глубина цвета)
+        def on_picture_settings_change(settings):
+            """Обработчик изменений настроек изображения с монитора"""
+            if settings:
+                # Проверяем, действительно ли значение изменилось
+                changed = False
+                if "backlight" in settings:
+                    new_value = int(settings["backlight"])
+                    if new_value != int(self.brightness_var.get()):
+                        changed = True
+                if "brightness" in settings:
+                    new_value = int(settings["brightness"])
+                    if new_value != int(self.black_level_var.get()):
+                        changed = True
+                if "color" in settings:
+                    new_value = int(settings["color"])
+                    if new_value != int(self.color_depth_var.get()):
+                        changed = True
+
+                if changed:
+                    print(f"Изменение настроек: {settings}")
+
+                def update_sliders():
+                    # Устанавливаем флаг, чтобы не отправлять обратно на монитор
+                    self._updating_from_webos = True
+
+                    # Обновляем ползунки
+                    if "backlight" in settings:
+                        value = int(settings["backlight"])
+                        self.brightness_var.set(value)
+                    if "brightness" in settings:
+                        value = int(settings["brightness"])
+                        self.black_level_var.set(value)
+                    if "color" in settings:
+                        value = int(settings["color"])
+                        self.color_depth_var.set(value)
+
+                    # Сбрасываем флаг через небольшую задержку
+                    self.root.after(
+                        100, lambda: setattr(self, "_updating_from_webos", False)
+                    )
+
+                self.root.after(0, update_sliders)
+
+        # Подписываемся на изменения настроек
+        self.run_async(
+            self.controller.subscribe_picture_settings_changes(
+                on_picture_settings_change
+            )
         )
 
         # Запускаем периодический опрос состояния HDR (каждые 3 секунды)
@@ -1327,10 +1946,14 @@ class LGMonitorGUI:
             )
             # Получаем оригинальное значение для проверки HDR
             original_mode = get_mode_from_translation(translated_mode, self.language)
+            self.current_picture_mode = original_mode
             hdr_enabled = original_mode.startswith("hdr")
             if self.current_hdr_state != hdr_enabled:
                 self.current_hdr_state = hdr_enabled
                 self._update_modes_ui(hdr_enabled)
+            else:
+                # Даже если HDR состояние не изменилось, обновляем ограничения ползунков
+                self.update_slider_states()
         else:
             self.status_label.config(text=f"✗ {self.get_text('mode_error')}")
 
@@ -1516,11 +2139,76 @@ class LGMonitorGUI:
         self.root.focus_force()
 
     def on_closing(self):
-        """Обработка закрытия окна - сворачивание в трей"""
-        if TRAY_AVAILABLE and self.tray_icon:
-            self.root.withdraw()  # Скрываем окно
+        """Обработка закрытия окна - сворачивание в трей или выход"""
+        if self.close_to_tray and TRAY_AVAILABLE and self.tray_icon:
+            self.root.withdraw()  # Скрываем окно в трей
         else:
-            self.quit_application()
+            self.quit_application()  # Полный выход
+
+    def setup_styles(self):
+        """Настроить стили интерфейса"""
+        style = ttk.Style()
+
+        # Светлая тема
+        bg_color = "#f0f0f0"
+        fg_color = "#000000"
+        button_bg = "#e0e0e0"
+        entry_bg = "#ffffff"
+
+        self.root.configure(bg=bg_color)
+
+        # Используем clam для единообразия
+        style.theme_use("clam")
+
+        # Frame
+        style.configure("TFrame", background=bg_color)
+        style.configure("TLabelframe", background=bg_color, foreground=fg_color)
+        style.configure("TLabelframe.Label", background=bg_color, foreground=fg_color)
+
+        # Label
+        style.configure("TLabel", background=bg_color, foreground=fg_color)
+
+        # Button
+        style.configure(
+            "TButton",
+            background=button_bg,
+            foreground=fg_color,
+            borderwidth=1,
+            relief="raised",
+        )
+        style.map("TButton", background=[("active", "#d0d0d0")])
+
+        # Checkbutton
+        style.configure("TCheckbutton", background=bg_color, foreground=fg_color)
+
+        # Combobox
+        style.configure(
+            "TCombobox",
+            fieldbackground=entry_bg,
+            background=button_bg,
+            foreground=fg_color,
+            arrowcolor=fg_color,
+            selectbackground=entry_bg,  # Убираем выделение - цвет фона = цвет выделения
+            selectforeground=fg_color,  # Цвет текста при выделении = обычный цвет
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", entry_bg)],
+            selectbackground=[("readonly", entry_bg)],  # Выделение = фон
+            selectforeground=[
+                ("readonly", fg_color)
+            ],  # Текст выделения = обычный текст
+            foreground=[("readonly", fg_color), ("!readonly", fg_color)],
+        )
+
+        # Scale (ползунки)
+        style.configure(
+            "TScale",
+            background=bg_color,
+            troughcolor=entry_bg,
+            borderwidth=1,
+            relief="sunken",
+        )
 
     def quit_application(self, icon=None, item=None):
         """Полный выход из приложения"""
@@ -1662,7 +2350,7 @@ if __name__ == "__main__":
 
             # Определяем язык для сообщения (пробуем загрузить из конфига)
             try:
-                saved_ip, language, _, _ = load_monitor_config()
+                saved_ip, language, _, _, _, _ = load_monitor_config()
                 if not language:
                     language = "en"
             except:

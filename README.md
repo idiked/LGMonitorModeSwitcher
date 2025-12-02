@@ -1,6 +1,8 @@
 # LG Monitor Mode Switcher
 
 A Windows application for switching picture modes on LG webOS monitors.
+### 
+![English Interface](docs/en.png)
 
 ## Supported Models
 
@@ -48,6 +50,8 @@ This application is built using the following open-source libraries:
 - **HDR Mode Detection**: Automatically shows appropriate modes based on HDR state
 - **Visual HDR Indicator**: The tray icon displays a red circle in the center when HDR mode is active
 - **Reliable HDR Monitoring**: Combined subscription and periodic polling ensure accurate HDR state detection
+- **Picture Settings Control**: Adjust brightness, black level, and color depth with real-time sliders
+- **Real-time Synchronization**: Settings automatically sync with monitor changes
 
 ## Usage
 
@@ -56,6 +60,7 @@ This application is built using the following open-source libraries:
 3. Select your monitor from the list
 4. Click "Connect" (you may need to confirm the connection on the monitor screen)
 5. Choose a picture mode from the dropdown and click "Apply"
+6. Adjust picture settings (brightness, black level, color depth) using the sliders
 
 The application will minimize to the system tray. You can access all features by clicking the tray icon.
 
@@ -76,6 +81,8 @@ The application will minimize to the system tray. You can access all features by
 # Переключатель режимов монитора LG
 
 Приложение для Windows для переключения режимов изображения на мониторах LG с webOS.
+###
+![Russian Interface](docs/ru.png)
 
 ## Поддерживаемые модели
 
@@ -123,6 +130,8 @@ The application will minimize to the system tray. You can access all features by
 - **Определение режима HDR**: Автоматическое отображение соответствующих режимов в зависимости от состояния HDR
 - **Визуальный индикатор HDR**: Иконка в трее отображает красный круг по центру когда активен HDR режим
 - **Надежный мониторинг HDR**: Комбинация подписки и периодического опроса обеспечивает точное определение состояния HDR
+- **Управление настройками изображения**: Регулировка яркости, уровня черного и глубины цвета с помощью ползунков в реальном времени
+- **Синхронизация в реальном времени**: Настройки автоматически синхронизируются с изменениями на мониторе
 
 ## Использование
 
@@ -131,6 +140,7 @@ The application will minimize to the system tray. You can access all features by
 3. Выберите ваш монитор из списка
 4. Нажмите "Подключиться" (возможно, потребуется подтвердить подключение на экране монитора)
 5. Выберите режим изображения из выпадающего списка и нажмите "Применить"
+6. Настройте параметры изображения (яркость, уровень черного, глубина цвета) с помощью ползунков
 
 Приложение свернется в системный трей. Вы можете получить доступ ко всем функциям, нажав на иконку в трее.
 
