@@ -40,12 +40,14 @@ This application is built using the following open-source libraries:
 ## Features
 
 - **Easy Mode Switching**: Quickly change picture modes directly from your PC
-- **System Tray Integration**: Change picture modes directly from the system tray
+- **System Tray Integration**: Change picture modes directly from the system tray with visual HDR indicator
 - **Auto-start with Windows**: Option to launch automatically on system startup
 - **Start Minimized**: Launch directly to the system tray
 - **Auto-connect**: Automatically connects to the last used monitor
 - **Multi-language Support**: English and Russian interfaces
 - **HDR Mode Detection**: Automatically shows appropriate modes based on HDR state
+- **Visual HDR Indicator**: The tray icon displays a red circle in the center when HDR mode is active
+- **Reliable HDR Monitoring**: Combined subscription and periodic polling ensure accurate HDR state detection
 
 ## Usage
 
@@ -113,12 +115,14 @@ The application will minimize to the system tray. You can access all features by
 ## Возможности
 
 - **Простое переключение режимов**: Быстрая смена режимов изображения прямо с ПК
-- **Интеграция с системным треем**: Доступ к смене режима экрана из системного трея
+- **Интеграция с системным треем**: Доступ к смене режима экрана из системного трея с визуальным индикатором HDR
 - **Автозапуск с Windows**: Возможность автоматического запуска при старте системы
 - **Запуск свернутым**: Запуск сразу в системный трей
 - **Автоподключение**: Автоматическое подключение к последнему использованному монитору
 - **Многоязычная поддержка**: Интерфейс на английском и русском языках
 - **Определение режима HDR**: Автоматическое отображение соответствующих режимов в зависимости от состояния HDR
+- **Визуальный индикатор HDR**: Иконка в трее отображает красный круг по центру когда активен HDR режим
+- **Надежный мониторинг HDR**: Комбинация подписки и периодического опроса обеспечивает точное определение состояния HDR
 
 ## Использование
 

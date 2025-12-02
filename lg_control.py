@@ -544,6 +544,7 @@ class LGMonitorGUI:
         self.current_hdr_state = None  # Текущее состояние HDR на мониторе
         self.connect_button = None  # Кнопка подключения/обновления
         self.hdr_monitor_task = None  # Задача мониторинга HDR
+        self._hdr_check_id = None  # ID для периодической проверки HDR
         # Загружаем сохраненный язык и настройку запуска, по умолчанию английский
         _, self.language, self.start_minimized, _ = load_monitor_config()
         if not self.language:
@@ -1144,9 +1145,10 @@ class LGMonitorGUI:
 
         self.run_async(set_current_mode())
 
-        # Обновляем меню трея
+        # Обновляем меню трея и иконку
         if TRAY_AVAILABLE and self.tray_icon:
             self.update_tray_menu()
+            self.update_tray_icon(hdr_enabled)
 
     def load_and_connect_saved_monitor(self):
         """Загрузить сохраненный IP и попытаться подключиться"""
@@ -1229,10 +1231,56 @@ class LGMonitorGUI:
             self.controller.subscribe_picture_mode_changes(on_picture_mode_change)
         )
 
+        # Запускаем периодический опрос состояния HDR (каждые 3 секунды)
+        # Это резервный механизм на случай, если подписка перестанет работать
+        self._start_periodic_hdr_check()
+
     def stop_hdr_monitoring(self):
         """Остановить мониторинг изменений HDR"""
         # Задача остановится автоматически при проверке self.connected
         self.hdr_monitor_task = None
+        # Отменяем периодическую проверку, если она запущена
+        if hasattr(self, "_hdr_check_id") and self._hdr_check_id:
+            self.root.after_cancel(self._hdr_check_id)
+            self._hdr_check_id = None
+
+    def _start_periodic_hdr_check(self):
+        """Запустить периодическую проверку состояния HDR"""
+        if not self.connected:
+            return
+
+        async def check_and_update_hdr():
+            """Проверить текущее состояние HDR и обновить UI при необходимости"""
+            if not self.connected:
+                return
+
+            try:
+                current_mode = await self.controller.get_current_picture_mode()
+                if current_mode:
+                    hdr_enabled = current_mode.lower().startswith("hdr")
+                    # Обновляем UI только если состояние изменилось
+                    if self.current_hdr_state != hdr_enabled:
+                        print(
+                            f"Периодическая проверка: обнаружено изменение HDR ({self.current_hdr_state} -> {hdr_enabled})"
+                        )
+                        self.root.after(0, self._update_modes_ui, hdr_enabled)
+            except Exception as e:
+                print(f"Ошибка при периодической проверке HDR: {e}")
+                # Если произошла ошибка подключения, пытаемся переподключиться
+                if self.controller.client and not self.controller.client.is_connected():
+                    print("Потеря соединения обнаружена, попытка переподключения...")
+                    try:
+                        await self.controller.client.connect()
+                        print("✓ Переподключение успешно")
+                    except Exception as reconnect_error:
+                        print(f"✗ Не удалось переподключиться: {reconnect_error}")
+
+        # Запускаем асинхронную проверку
+        self.run_async(check_and_update_hdr())
+
+        # Планируем следующую проверку через 5 секунд
+        if self.connected:
+            self._hdr_check_id = self.root.after(5000, self._start_periodic_hdr_check)
 
     def update_monitor_display_name(self):
         """Обновить отображаемое имя монитора в списке"""
@@ -1286,8 +1334,12 @@ class LGMonitorGUI:
         else:
             self.status_label.config(text=f"✗ {self.get_text('mode_error')}")
 
-    def create_app_icon(self):
-        """Создать иконку приложения - круглую с белым фоном и красным кольцом"""
+    def create_app_icon(self, hdr_mode=False):
+        """Создать иконку приложения - круглую с белым фоном и красным кольцом
+
+        Args:
+            hdr_mode: если True, добавляет текст "HDR" по центру
+        """
         # Создаем изображение с прозрачностью
         image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
@@ -1327,11 +1379,26 @@ class LGMonitorGUI:
         # Вырезаем внутреннюю часть (рисуем белый круг поверх)
         draw.ellipse(bbox_ring_inner, fill="white", outline="white")
 
+        # Если HDR режим, добавляем красный круг по центру
+        if hdr_mode:
+            hdr_indicator_radius = 10
+            bbox_hdr = [
+                center[0] - hdr_indicator_radius,
+                center[1] - hdr_indicator_radius,
+                center[0] + hdr_indicator_radius,
+                center[1] + hdr_indicator_radius,
+            ]
+            draw.ellipse(bbox_hdr, fill="#cb1744", outline="#cb1744")
+
         return image
 
-    def create_tray_icon(self):
-        """Создать иконку для системного трея - использует ту же иконку что и окно"""
-        return self.create_app_icon()
+    def create_tray_icon(self, hdr_mode=False):
+        """Создать иконку для системного трея - использует ту же иконку что и окно
+
+        Args:
+            hdr_mode: если True, добавляет текст "HDR" по центру
+        """
+        return self.create_app_icon(hdr_mode)
 
     def set_window_icon(self):
         """Установить иконку окна приложения"""
@@ -1411,6 +1478,16 @@ class LGMonitorGUI:
 
         # Обновляем меню
         self.tray_icon.menu = self.create_tray_menu()
+
+    def update_tray_icon(self, hdr_mode=False):
+        """Обновить иконку трея в зависимости от режима HDR"""
+        if not TRAY_AVAILABLE or not self.tray_icon:
+            return
+
+        # Создаем новую иконку с учетом HDR режима
+        new_icon = self.create_tray_icon(hdr_mode)
+        # Обновляем иконку
+        self.tray_icon.icon = new_icon
 
     def start_tray(self):
         """Запустить системный трей"""
