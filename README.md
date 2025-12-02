@@ -76,6 +76,10 @@ The application will minimize to the system tray. You can access all features by
 - **Start Minimized**: Enable "Start minimized" to launch directly to the system tray
 - **Language**: Switch between English and Russian from the language dropdown
 
+## Disclaimer
+
+This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+
 ---
 
 # Переключатель режимов монитора LG
@@ -156,3 +160,6 @@ The application will minimize to the system tray. You can access all features by
 - **Запуск свернутым**: Включите "Запускать свернутой" для запуска сразу в системный трей
 - **Язык**: Переключение между английским и русским из выпадающего списка языков
 
+## Отказ от ответственности
+
+Данное программное обеспечение предоставляется "как есть", без каких-либо гарантий, явных или подразумеваемых, включая, но не ограничиваясь гарантиями товарной пригодности, пригодности для определенной цели и отсутствия нарушений. Ни при каких обстоятельствах авторы или правообладатели не несут ответственности за какие-либо претензии, ущерб или иную ответственность, будь то в результате действия договора, деликта или иным образом, возникающие из, в результате или в связи с программным обеспечением или использованием или другими операциями с программным обеспечением.
